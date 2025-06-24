@@ -180,7 +180,7 @@ EOEngine is an open-source project under the **MIT License**.
 
 We gratefully acknowledge:
 - **Ethan Moffat** for [Etheos](https://github.com/ethanmoffat/etheos)
-- The **EOSource** community at [www.eosource.net](https://www.eosource.net)
+- The **EOSource** original developers [www.eosource.net](https://www.eosource.net)
 - The **EOServ** project and early EO emulator pioneers
 - All past and future contributors to the Endless Online engine ecosystem
 
