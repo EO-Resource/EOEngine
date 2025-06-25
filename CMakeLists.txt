@@ -2,7 +2,7 @@
 # EOSERV is released under the zlib license.
 # See LICENSE.txt for more info.
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.5)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0054 NEW)
 
@@ -84,7 +84,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 	set(eoserv_CLANG TRUE)
 	set(eoserv_COMPILER_SUPPORTED TRUE)
 
-	if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "3.4")
+	if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "3.5")
 		set(eoserv_COMPILER_SUPPORTED FALSE)
 	endif()
 endif()
