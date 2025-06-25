@@ -1,4 +1,3 @@
-
 /* $Id$
  * EOSERV is released under the zlib license.
  * See LICENSE.txt for more info.
@@ -288,13 +287,18 @@ int eoserv_main(int argc, char *argv[])
 
 		Console::Styled[1] = Console::Styled[0] = config["StyleConsole"];
 		std::puts("\
-               ███████╗████████╗██╗  ██╗███████╗ ██████╗ ███████╗               \n\
- v" EOSERV_VERSION_STRING "        ██╔════╝╚══██╔══╝██║  ██║██╔════╝██╔═══██╗██╔════╝               \n\
-===============█████╗     ██║   ███████║█████╗  ██║   ██║███████╗===============\n\
-===============██╔══╝     ██║   ██╔══██║██╔══╝  ██║   ██║╚════██║===============\n\
- Copyright (c) ███████╗   ██║   ██║  ██║███████╗╚██████╔╝███████║ Modified by   \n\
-Julian Smythe  ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝ Ethan Moffat  \n\
-\n");
+  ______ ____    ______ _   _  _____ _____ _   _ ______ \n\
+ |  ____/ __ \\  |  ____| \\ | |/ ____|_   _| \\ | |  ____|\n\
+ | |__ | |  | | | |__  |  \\| | |  __  | | |  \\| | |__   \n\
+ |  __|| |  | | |  __| | . ` | | |_ | | | | . ` |  __|  \n\
+ | |___| |__| | | |____| |\\  | |__| |_| |_| |\\  | |____ \n\
+ |______\\____/  |______|_| \\_|\\_____|_____|_| \\_|______|\n\
+                                                        \n\
+                                                        \n\
+=============================================================\n\
+Thanks to EOServ (C) Julian Smythe & Etheos (C) Ethan Moffat\n\
+=============================================================\n\
+");
 #ifdef DEBUG
 		Console::Wrn("This is a debug build and shouldn't be used for live servers.");
 #endif
@@ -374,198 +378,18 @@ Julian Smythe  ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═
 		server->Listen(int(config["MaxConnections"]), int(config["ListenBacklog"]));
 		Console::Out("Listening on %s:%i (0/%i connections)", std::string(config["Host"]).c_str(), int(config["Port"]), int(config["MaxConnections"]));
 
-		bool tables_exist = false;
-		bool tried_install = false;
+		Database_Result acc_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `accounts`");
+		Database_Result character_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `characters`");
 
-		while (!tables_exist)
-		{
-			bool try_install = false;
-
-			try
-			{
-				Database_Result acc_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `accounts`");
-				Database_Result character_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `characters`");
-				Database_Result admin_character_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `characters` WHERE `admin` > 0");
-				Database_Result guild_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `guilds`");
-				Database_Result ban_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `bans`");
-				Database_Result ban_active_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `bans` WHERE `expires` <= # AND `expires` <> 0", int(std::time(0)));
-				Database_Result ban_perm_count = server->world->db->Query("SELECT COUNT(1) AS `count` FROM `bans` WHERE `expires` = 0");
-
-				Console::Out("Database info:");
-				Console::Out("  Accounts:   %i", int(acc_count.front()["count"]));
-				Console::Out("  Characters: %i (%i staff)", int(character_count.front()["count"]), int(admin_character_count.front()["count"]));
-				Console::Out("  Guilds:     %i", int(guild_count.front()["count"]));
-				Console::Out("  Bans:       %i (%i expired, %i permanent)", int(ban_count.front()["count"]), int(ban_active_count.front()["count"]), int(ban_perm_count.front()["count"]));
-
-				server->world->UpdateAdminCount(int(admin_character_count.front()["count"]));
-
-				tables_exist = true;
-			}
-			catch (Database_Exception &e)
-			{
-#ifdef DEBUG
-				Console::Dbg("Install check: %s: %s", e.what(), e.error());
-#endif // DEBUG
-
-				if (tried_install)
-				{
-					Console::Err("Could not find or install tables.");
-					Console::Err(e.error());
-					std::exit(1);
-				}
-
-				try_install = true;
-			}
-
-			if (try_install)
-			{
-				tried_install = true;
-				auto install_script = static_cast<std::string>(config["InstallSQL"]);
-				Console::Wrn("A required table is missing. Attempting to execute %s", install_script.c_str());
-
-				try
-				{
-					server->world->db->ExecuteFile(install_script);
-				}
-				catch (Database_Exception& e)
-				{
-					Console::Err("Could not install tables.");
-					Console::Err(e.error());
-					std::exit(1);
-				}
-			}
-		}
-
-		server->world->RestoreFromDump(server->world->config["WorldDumpFile"]);
-
-		while (eoserv_running)
-		{
-			if (eoserv_sig_abort || eoserv_sig_reload)
-			{
-				Console::Out(eoserv_sig_abort ? "Exiting EOSERV" : "Reloading EOSERV");
-				eoserv_sig_abort = false;
-				break;
-			}
-
-			if (eoserv_sig_rehash)
-			{
-				Console::Out("Reloading config");
-
-				std::string old_logerr = config["LogErr"];
-				std::string old_logout = config["LogOut"];
-
-				eoserv_sig_rehash = false;
-				server->world->Rehash();
-
-				// Does not support changing from file logging back to '-'
-				{
-					std::time_t rawtime;
-					char timestr[256];
-					std::time(&rawtime);
-					std::strftime(timestr, 256, "%c", std::localtime(&rawtime));
-
-					std::string logerr = config["LogErr"];
-					if (!logerr.empty() && logerr.compare("-") != 0)
-					{
-						if (logerr != old_logerr)
-							Console::Out("Redirecting errors to '%s'...", logerr.c_str());
-
-						if (!std::freopen(logerr.c_str(), "a", stderr))
-						{
-							Console::Err("Failed to redirect errors.");
-						}
-						else
-						{
-							Console::Styled[Console::STREAM_ERR] = false;
-							std::fprintf(stderr, "\n\n--- %s ---\n\n", timestr);
-						}
-
-						if (std::setvbuf(stderr, 0, _IONBF, 0) != 0)
-						{
-							Console::Wrn("Failed to change stderr buffer settings");
-						}
-					}
-
-					std::string logout = config["LogOut"];
-					if (!logout.empty() && logout.compare("-") != 0)
-					{
-						if (logout != old_logout)
-							Console::Out("Redirecting output to '%s'...", logout.c_str());
-
-						if (!std::freopen(logout.c_str(), "a", stdout))
-						{
-							Console::Err("Failed to redirect output.");
-						}
-						else
-						{
-							Console::Styled[Console::STREAM_OUT] = false;
-							std::printf("\n\n--- %s ---\n\n", timestr);
-						}
-
-						if (std::setvbuf(stdout, 0, _IONBF, 0) != 0)
-						{
-							Console::Wrn("Failed to change stdout buffer settings");
-						}
-					}
-				}
-
-				Console::Out("Config reloaded");
-			}
-
-			server->Tick();
-		}
+		return 0;
+	}
 #ifndef DEBUG_EXCEPTIONS
-	}
-	catch (Socket_Exception &e)
-	{
-		DumpWorld(server);
-		Console::Err("%s: %s", e.what(), e.error());
-		return 1;
-	}
-	catch (Database_Exception &e)
-	{
-		DumpWorld(server);
-		Console::Err("%s: %s", e.what(), e.error());
-		return 1;
-	}
-	catch (std::runtime_error &e)
-	{
-		DumpWorld(server);
-		Console::Err("Runtime Error: %s", e.what());
-		return 1;
-	}
-	catch (std::logic_error &e)
-	{
-		DumpWorld(server);
-		Console::Err("Logic Error: %s", e.what());
-		return 1;
-	}
 	catch (std::exception &e)
 	{
-		DumpWorld(server);
-		Console::Err("Uncaught Exception: %s", e.what());
-		return 1;
-	}
-	catch (...)
-	{
-		DumpWorld(server);
-		Console::Err("Uncaught Exception");
+		Console::Err("Exception: %s", e.what());
 		return 1;
 	}
 #endif // DEBUG_EXCEPTIONS
-
-	DumpWorld(server);
-
-#ifdef WIN32
-	if (!eoserv_sig_reload)
-	{
-		::SetEvent(eoserv_close_event);
-	}
-#endif // WIN32
-
-	server.reset();
-
-	return 0;
 }
 
 void DumpWorld(std::unique_ptr<EOServer>& server)
